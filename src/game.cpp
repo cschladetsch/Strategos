@@ -2,11 +2,9 @@
 #include "board.hpp"
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
+#include "rang.hpp"
 #include <map>
 #include <algorithm>
-#include <cctype>
-#include <chrono>
-#include <random>
 
 Game::Game() : board(new Board()) {
     initializePieces();
@@ -25,17 +23,59 @@ void Game::initializePieces() {
     player2_pieces = player1_pieces;
 }
 
+void Game::showStartScreen() const {
+    clear();
+    mvprintw(1, 30, "STRATEGOS");
+    mvprintw(3, 10, "A Chess-Go Hybrid Game");
+    mvprintw(5, 10, "Controls:");
+    mvprintw(6, 12, "→ Arrow keys: Move cursor");
+    mvprintw(7, 12, "→ Space: Select/place piece");
+    mvprintw(8, 12, "→ K: King   N: Knight   B: Bishop   R: Rook   S: Stone");
+    mvprintw(9, 12, "→ ESC: Cancel selection");
+    mvprintw(10, 12, "→ Ctrl-C: Quit game");
+    mvprintw(12, 10, "Press any key to start...");
+    refresh();
+    getch();
+}
+
+void Game::showEndScreen(int winner) const {
+    clear();
+    mvprintw(2, 30, "GAME OVER");
+    
+    if (winner > 0) {
+        std::string win_msg = "Player " + std::to_string(winner) + " wins!";
+        if (winner == 1) {
+            win_msg = rang::fg::red + win_msg + rang::fg::reset;
+        } else {
+            win_msg = rang::fg::blue + win_msg + rang::fg::reset;
+        }
+        mvprintw(4, 20, "%s", win_msg.c_str());
+    } else {
+        mvprintw(4, 20, "Game ended in a draw!");
+    }
+    
+    mvprintw(6, 20, "Final Scores:");
+    mvprintw(7, 22, "Player 1: %d", board->getScore(1));
+    mvprintw(8, 22, "Player 2: %d", board->getScore(2));
+    
+    if (turn_count > 30) {
+        mvprintw(10, 20, "Maximum turns reached!");
+    }
+    
+    mvprintw(12, 20, "Press any key to exit...");
+    refresh();
+    getch();
+}
+
+std::map<std::string, int>& Game::getCurrentPlayerPieces() {
+    return (player_turn == 1) ? player1_pieces : player2_pieces;
+}
+
 void Game::handleInput(int input, bool& game_running) {
     auto& current_pieces = getCurrentPlayerPieces();
 
     switch (input) {
-        case 'q':
-        case 'Q':
-            game_running = false;
-            spdlog::info("Game quit by user");
-            break;
-
-        case 27: // Escape key to cancel selection
+        case 27: // ESC
             if (piece_selected) {
                 board->clearSelection();
                 piece_selected = false;
@@ -50,18 +90,16 @@ void Game::handleInput(int input, bool& game_running) {
             board->moveCursor(input);
             break;
 
-        case ' ': // Space bar
+        case ' ': // Space
             if (!piece_selected) {
-                // Try to select a piece
                 if (board->selectPiece(player_turn)) {
                     piece_selected = true;
                     spdlog::info("Player {} selected a piece", player_turn);
                 }
             } else {
-                // Try to move the selected piece
                 if (board->movePiece()) {
                     piece_selected = false;
-                    player_turn = 3 - player_turn; // Switch players
+                    player_turn = 3 - player_turn;
                     turn_count++;
                     spdlog::info("Piece moved, turn {}", turn_count);
                 }
@@ -85,25 +123,21 @@ void Game::handleInput(int input, bool& game_running) {
 void Game::start() {
     spdlog::info("Starting game");
     
+    // Initialize UTF-8
+    setlocale(LC_ALL, "");
+    
+    // Initialize ncurses
     initscr();
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
     curs_set(0);
-
-    // Initialize colors
-    if (has_colors()) {
-        start_color();
-        init_pair(1, COLOR_RED, COLOR_BLACK);    // Player 1
-        init_pair(2, COLOR_BLUE, COLOR_BLACK);   // Player 2
-        init_pair(3, COLOR_YELLOW, COLOR_BLACK); // Stones
-    }
-
+    
+    // Show start screen and initialize game
+    showStartScreen();
     board->initialize();
-    player_turn = 1;
-    turn_count = 1;
-    piece_selected = false;
-
+    
+    // Main game loop
     bool game_running = true;
     int winner = 0;
 
@@ -126,12 +160,6 @@ void Game::start() {
         winner = (p1_score > p2_score) ? 1 : (p2_score > p1_score) ? 2 : 0;
     }
 
-    mvprintw(12, 0, "Game Over! Winner: Player %d", winner);
-    refresh();
-    getch();
+    showEndScreen(winner);
     endwin();
-}
-
-std::map<std::string, int>& Game::getCurrentPlayerPieces() {
-    return (player_turn == 1) ? player1_pieces : player2_pieces;
 }

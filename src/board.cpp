@@ -1,17 +1,16 @@
 #include "board.hpp"
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
-#include <algorithm>
-#include <cmath>
 #include <map>
 #include <string>
-#include <vector>
+#include <algorithm>
+#include <cmath>
 
 void Board::initialize() {
     spdlog::info("Initializing board");
     
     for (auto& row : grid) {
-        row.fill("·");
+        row.fill(EMPTY_CELL);
     }
     
     // Set up Player 1 pieces (top)
@@ -36,44 +35,47 @@ void Board::initialize() {
 void Board::display(const std::map<std::string, int>& current_pieces, int turn_count, int player_turn) const {
     clear();
 
-    mvprintw(0, 4, "    A B C D E F G H I J K");
+    // Display column headers (A-K)
+    mvprintw(0, 8, "A B C D E F G H I J K");
     
     for (int y = 0; y < size; ++y) {
-        mvprintw(y + 1, 0, "%2d  ", y + 1);
+        mvprintw(y + 1, 0, "%2d", y + 1);
+        mvprintw(y + 1, 2, "  ");
+        
         for (int x = 0; x < size; ++x) {
             Position pos{x, y};
             bool is_cursor = (x == cursor_x && y == cursor_y);
             bool is_selected = pos == selected_pos;
             bool is_valid_move = std::find(valid_moves.begin(), valid_moves.end(), pos) != valid_moves.end();
             
-            if (grid[y][x] != "·" && grid[y][x] != "S") {
+            // Set colors
+            if (grid[y][x] != EMPTY_CELL && grid[y][x] != "S") {
                 bool is_top_half = y < size/2;
                 attron(COLOR_PAIR(is_top_half ? 1 : 2));
             } else if (grid[y][x] == "S") {
                 attron(COLOR_PAIR(3));
             }
             
-            if (is_cursor) attron(A_REVERSE);
-            if (is_selected) attron(A_BOLD | A_REVERSE);
+            // Apply highlighting attributes
             if (is_valid_move) attron(A_BOLD);
-            if (has_selection) {
-                mvprintw(size + 4, 0, "Select destination or press ESC to cancel (Ctrl-C to quit)");
+            if (is_selected || is_cursor) attron(A_REVERSE);
+
+            // Print piece or valid move marker
+            if (is_valid_move) {
+                mvprintw(y + 1, 8 + x * 2, "*");
             } else {
-                mvprintw(size + 4, 0, "SPACE to select piece, K/N/B/R/S to place new piece (Ctrl-C to quit)");
-            }
-            mvprintw(y + 1, 8 + x * 2, "%c", grid[y][x][0]);
-            if (x < size - 1) {
-                mvaddch(y + 1, 9 + x * 2, ' ');
+                mvprintw(y + 1, 8 + x * 2, "%s", grid[y][x].c_str());
             }
 
+            // Reset attributes
             attroff(A_REVERSE | A_BOLD);
             attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
         }
     }
 
+    // Status display
     mvprintw(size + 2, 0, "Turn %d | Player %d", turn_count, player_turn);
     mvprintw(size + 3, 0, "Available:");
-    
     int offset = 10;
     for (const auto& [piece, count] : current_pieces) {
         if (count > 0) {
@@ -82,7 +84,13 @@ void Board::display(const std::map<std::string, int>& current_pieces, int turn_c
         }
     }
 
-    mvprintw(size + 4, 0, "SPACE to select piece, K/N/B/R/S to place new piece, Q to quit");
+    // Help text
+    if (has_selection) {
+        mvprintw(size + 4, 0, "Select destination (*) or press ESC to cancel (Ctrl-C to quit)");
+    } else {
+        mvprintw(size + 4, 0, "SPACE to select piece, K/N/B/R/S to place new piece (Ctrl-C to quit)");
+    }
+
     refresh();
 }
 
@@ -112,24 +120,30 @@ bool Board::isValidPieceMove(const std::string& piece, const Position& from, con
     if (from == to) return false;
     
     std::string target = getPieceAt(to);
-    if (target == "S") return false;
-    if (target != "·" && !isOpponentPiece(to, isPieceOwner(from, 1) ? 1 : 2)) return false;
+    if (target == "S") return false;  // Can't move onto stones
+    if (target != EMPTY_CELL && !isOpponentPiece(to, isPieceOwner(from, 1) ? 1 : 2)) return false;
 
     int dx = to.x - from.x;
     int dy = to.y - from.y;
 
-    if (piece == "K") {
-        return std::abs(dx) <= 1 && std::abs(dy) <= 1;
-    }
-    else if (piece == "N") {
-        return (std::abs(dx) == 2 && std::abs(dy) == 1) || 
-               (std::abs(dx) == 1 && std::abs(dy) == 2);
-    }
-    else if (piece == "B") {
-        return std::abs(dx) == std::abs(dy) && isPathClear(from, to);
-    }
-    else if (piece == "R") {
-        return (dx == 0 || dy == 0) && isPathClear(from, to);
+    switch (piece[0]) {
+        case 'K':  // King moves one square in any direction
+            return std::abs(dx) <= 1 && std::abs(dy) <= 1;
+            
+        case 'N':  // Knight moves in L-shape (2+1)
+            return (std::abs(dx) == 2 && std::abs(dy) == 1) || 
+                   (std::abs(dx) == 1 && std::abs(dy) == 2);
+            
+        case 'B':  // Bishop moves diagonally
+            if (std::abs(dx) != std::abs(dy)) return false;
+            return isPathClear(from, to);
+            
+        case 'R':  // Rook moves horizontally or vertically
+            if (dx != 0 && dy != 0) return false;
+            return isPathClear(from, to);
+            
+        case 'S':  // Stones cannot be moved
+            return false;
     }
     return false;
 }
@@ -144,7 +158,7 @@ bool Board::isPathClear(const Position& from, const Position& to) const {
             from.x + (dx * i) / steps,
             from.y + (dy * i) / steps
         };
-        if (getPieceAt(pos) != "·") return false;
+        if (getPieceAt(pos) != EMPTY_CELL) return false;
     }
     return true;
 }
@@ -162,11 +176,11 @@ bool Board::selectPiece(int player_turn) {
     Position pos{cursor_x, cursor_y};
     std::string piece = getPieceAt(pos);
     
-    if (piece != "·" && piece != "S" && isPieceOwner(pos, player_turn)) {
-        spdlog::info("Selected piece {} at ({},{})", piece, pos.x, pos.y);
+    if (piece != EMPTY_CELL && piece != "S" && isPieceOwner(pos, player_turn)) {
         selected_pos = pos;
         has_selection = true;
         updateValidMoves();
+        spdlog::info("Selected {} at ({},{})", piece, pos.x, pos.y);
         return true;
     }
     return false;
@@ -192,7 +206,7 @@ bool Board::placePiece(const std::string& piece, int player_turn) {
     bool valid_zone = (player_turn == 1 && pos.y <= size/2) ||
                      (player_turn == 2 && pos.y > size/2);
     
-    if (getPieceAt(pos) == "·" && valid_zone) {
+    if (getPieceAt(pos) == EMPTY_CELL && valid_zone) {
         setPieceAt(pos, piece);
         spdlog::info("Placed {} at ({},{}) by Player {}", piece, pos.x, pos.y, player_turn);
         return true;
@@ -208,12 +222,12 @@ bool Board::movePiece() {
         std::string piece = getPieceAt(selected_pos);
         std::string captured = getPieceAt(to);
         
-        if (captured != "·") {
+        if (captured != EMPTY_CELL) {
             spdlog::info("Captured {} at ({},{})", captured, to.x, to.y);
         }
         
         setPieceAt(to, piece);
-        setPieceAt(selected_pos, "·");
+        setPieceAt(selected_pos, EMPTY_CELL);
         clearSelection();
         return true;
     }
@@ -228,7 +242,7 @@ void Board::clearSelection() {
 
 bool Board::isOpponentPiece(const Position& pos, int player) const {
     std::string piece = getPieceAt(pos);
-    if (piece == "·" || piece == "S") return false;
+    if (piece == EMPTY_CELL || piece == "S") return false;
     return isPieceOwner(pos, 3 - player);
 }
 
@@ -241,7 +255,7 @@ bool Board::isPieceOwner(const Position& pos, int player) const {
 bool Board::isControlled(const Position& pos, int player) const {
     if (!isValidPosition(pos)) return false;
     std::string piece = getPieceAt(pos);
-    if (piece == "·") return false;
+    if (piece == EMPTY_CELL) return false;
     if (piece == "S") return isPieceOwner(pos, player);
     return isPieceOwner(pos, player);
 }
