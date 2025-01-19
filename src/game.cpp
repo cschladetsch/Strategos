@@ -35,6 +35,14 @@ void Game::handleInput(int input, bool& game_running) {
             spdlog::info("Game quit by user");
             break;
 
+        case 27: // Escape key to cancel selection
+            if (piece_selected) {
+                board->clearSelection();
+                piece_selected = false;
+                spdlog::info("Selection cancelled");
+            }
+            break;
+
         case KEY_UP:
         case KEY_DOWN:
         case KEY_LEFT:
@@ -57,8 +65,6 @@ void Game::handleInput(int input, bool& game_running) {
                     turn_count++;
                     spdlog::info("Piece moved, turn {}", turn_count);
                 }
-                board->clearSelection();
-                piece_selected = false;
             }
             break;
 

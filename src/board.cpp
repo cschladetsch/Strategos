@@ -56,7 +56,11 @@ void Board::display(const std::map<std::string, int>& current_pieces, int turn_c
             if (is_cursor) attron(A_REVERSE);
             if (is_selected) attron(A_BOLD | A_REVERSE);
             if (is_valid_move) attron(A_BOLD);
-
+            if (has_selection) {
+                mvprintw(size + 4, 0, "Select destination or press ESC to cancel (Ctrl-C to quit)");
+            } else {
+                mvprintw(size + 4, 0, "SPACE to select piece, K/N/B/R/S to place new piece (Ctrl-C to quit)");
+            }
             mvprintw(y + 1, 8 + x * 2, "%c", grid[y][x][0]);
             if (x < size - 1) {
                 mvaddch(y + 1, 9 + x * 2, ' ');
