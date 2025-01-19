@@ -4,6 +4,7 @@
 
 #include <array>
 #include <string>
+#include <map>
 
 class Board {
 private:
@@ -14,9 +15,11 @@ private:
 
 public:
     void initialize();
-    void display() const;
+    void display(const std::map<std::string, int>& pieces, int player_turn) const;
     void moveCursor(char direction);
-    void placeStone();
+    bool placePiece(const std::string& piece, int player_turn);
+    int getCursorX() const { return cursor_x; }
+    int getCursorY() const { return cursor_y; }
 };
 
 #endif
