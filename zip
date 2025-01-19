@@ -1,0 +1,5 @@
+#!/bin/bash
+
+zip code.zip CMakeLists.txt *.md -r include -r tests -r src
+
+
