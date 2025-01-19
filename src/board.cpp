@@ -1,67 +1,308 @@
 #include "board.hpp"
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
+#include <cmath>
+#include <algorithm>
 
 void Board::initialize() {
-    spdlog::info("Initializing board...");
+    spdlog::info("Initializing board");
+    
+    // Clear the grid
     for (auto& row : grid) {
-        row.fill("·"); // Centered dot for empty cells
+        row.fill("·");
     }
+    
+    // Set up Player 1 pieces (top)
+    grid[0][0] = "K";  // King
+    grid[0][1] = "N";  // Knights
+    grid[0][2] = "N";
+    grid[1][0] = "B";  // Bishop
+    grid[2][0] = "R";  // Rook
+
+    // Set up Player 2 pieces (bottom)
+    grid[10][10] = "K";
+    grid[10][9] = "N";
+    grid[10][8] = "N";
+    grid[9][10] = "B";
+    grid[8][10] = "R";
 }
 
-void Board::display(const std::map<std::string, int>& pieces, int player_turn) const {
+void Board::display(const std::map<std::string, int>& current_pieces, int turn_count, int player_turn) const {
     clear();
 
-    // Display column labels
+    // Display column headers (A-K)
     mvprintw(0, 4, "  A B C D E F G H I J K");
-
-    // Display rows and cells
+    
+    // Calculate central region bounds
+    int central_start = (size - central_size) / 2;
+    int central_end = central_start + central_size;
+    
+    // Display board
     for (int y = 0; y < size; ++y) {
+        // Row numbers
         mvprintw(y + 1, 0, "%2d ", y + 1);
+        
         for (int x = 0; x < size; ++x) {
-            if (x == cursor_x && y == cursor_y) {
-                attron(A_REVERSE);
-                mvprintw(y + 1, 4 + x * 2, "%s", grid[y][x].c_str());
-                attroff(A_REVERSE);
-            } else if (grid[y][x] == "K" || grid[y][x] == "N" || grid[y][x] == "B" || grid[y][x] == "R") {
-                int color_pair = (player_turn == 1) ? 1 : 2;
-                attron(COLOR_PAIR(color_pair));
-                mvprintw(y + 1, 4 + x * 2, "%s", grid[y][x].c_str());
-                attroff(COLOR_PAIR(color_pair));
-            } else {
-                mvprintw(y + 1, 4 + x * 2, "%s", grid[y][x].c_str());
+            Position pos{x, y};
+            bool is_selected = pos == selected_pos;
+            bool is_valid_move = std::find(valid_moves.begin(), valid_moves.end(), pos) != valid_moves.end();
+            bool is_central = x >= central_start && x < central_end && 
+                            y >= central_start && y < central_end;
+            bool is_cursor = (x == cursor_x && y == cursor_y);
+            
+            // Base attributes
+            int attrs = 0;
+            if (is_central) attrs |= A_DIM;
+            if (is_selected) attrs |= A_REVERSE;
+            if (is_valid_move) attrs |= A_BOLD;
+            if (is_cursor) attrs |= A_REVERSE;
+            attron(attrs);
+            
+            // Color handling
+            std::string piece = grid[y][x];
+            if (piece != "·" && piece != "S") {
+                // Color based on player ownership
+                bool is_top_half = y < size/2;
+                attron(COLOR_PAIR(is_top_half ? 1 : 2));
+            } else if (piece == "S") {
+                attron(COLOR_PAIR(3));
             }
-        }
-    }
 
-    // Display available pieces and current player
-    mvprintw(size + 2, 0, "Player %d's turn.", player_turn);
-    mvprintw(size + 3, 0, "Available pieces:");
-    int offset = 20;
-    for (const auto& [piece, count] : pieces) {
-        mvprintw(size + 3, offset, "%s:%d", piece.c_str(), count);
-        offset += 10;
+            // Draw the piece
+            mvprintw(y + 1, 4 + x * 2, "%s", piece.c_str());
+            
+            // Reset attributes
+            attroff(attrs);
+            attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
+        }
     }
 
     refresh();
 }
 
+bool Board::isValidPosition(const Position& pos) const {
+    return pos.x >= 0 && pos.x < size && pos.y >= 0 && pos.y < size;
+}
+
+bool Board::isCentralRegion(const Position& pos) const {
+    int start = (size - central_size) / 2;
+    int end = start + central_size;
+    return pos.x >= start && pos.x < end && 
+           pos.y >= start && pos.y < end;
+}
+
+std::string Board::getPieceAt(const Position& pos) const {
+    if (!isValidPosition(pos)) return "";
+    return grid[pos.y][pos.x];
+}
+
+void Board::setPieceAt(const Position& pos, const std::string& piece) {
+    if (isValidPosition(pos)) {
+        grid[pos.y][pos.x] = piece;
+    }
+}
+
+bool Board::isValidPieceMove(const std::string& piece, const Position& from, const Position& to) const {
+    if (!isValidPosition(to)) return false;
+    
+    std::string target_piece = getPieceAt(to);
+    if (target_piece == "S") return false;  // Can't move onto stones
+    if (target_piece != "·" && !isOpponentPiece(to, isPieceOwner(from, 1) ? 1 : 2)) return false;
+
+    int dx = to.x - from.x;
+    int dy = to.y - from.y;
+
+    if (piece == "K") {
+        return std::abs(dx) <= 1 && std::abs(dy) <= 1;
+    }
+    else if (piece == "N") {
+        return (std::abs(dx) == 2 && std::abs(dy) == 1) || 
+               (std::abs(dx) == 1 && std::abs(dy) == 2);
+    }
+    else if (piece == "B") {
+        return std::abs(dx) == std::abs(dy) && isPathClear(from, to);
+    }
+    else if (piece == "R") {
+        return (dx == 0 || dy == 0) && isPathClear(from, to);
+    }
+    return false;
+}
+
+bool Board::isOpponentPiece(const Position& pos, int player) const {
+    std::string piece = getPieceAt(pos);
+    if (piece == "·" || piece == "S") return false;
+    return isPieceOwner(pos, 3 - player);  // 3 - player switches between 1 and 2
+}
+
+bool Board::isPathClear(const Position& from, const Position& to) const {
+    int dx = to.x - from.x;
+    int dy = to.y - from.y;
+    int steps = std::max(std::abs(dx), std::abs(dy));
+    
+    for (int i = 1; i < steps; ++i) {
+        Position pos{
+            from.x + (dx * i) / steps,
+            from.y + (dy * i) / steps
+        };
+        if (getPieceAt(pos) != "·") return false;
+    }
+    return true;
+}
+
 void Board::moveCursor(int input) {
     switch (input) {
-        case KEY_UP: if (cursor_y > 0) --cursor_y; break;
-        case KEY_DOWN: if (cursor_y < size - 1) ++cursor_y; break;
-        case KEY_LEFT: if (cursor_x > 0) --cursor_x; break;
+        case KEY_UP:    if (cursor_y > 0) --cursor_y; break;
+        case KEY_DOWN:  if (cursor_y < size - 1) ++cursor_y; break;
+        case KEY_LEFT:  if (cursor_x > 0) --cursor_x; break;
         case KEY_RIGHT: if (cursor_x < size - 1) ++cursor_x; break;
     }
 }
 
-bool Board::placePiece(const std::string& piece, int player_turn) {
-    if (grid[cursor_y][cursor_x] == "·") { // Check for an empty cell
-        grid[cursor_y][cursor_x] = piece;
-        spdlog::info("Placed {} by Player {} at ({}, {}).", piece, player_turn, cursor_y, cursor_x);
+bool Board::selectPiece(int player_turn) {
+    Position pos{cursor_x, cursor_y};
+    std::string piece = getPieceAt(pos);
+    
+    if (piece != "·" && piece != "S" && isPieceOwner(pos, player_turn)) {
+        selected_pos = pos;
+        has_selection = true;
+        updateValidMoves();
+        spdlog::info("Selected {} at ({},{})", piece, pos.x, pos.y);
         return true;
-    } else {
-        spdlog::warn("Cell occupied at ({}, {}).", cursor_y, cursor_x);
-        return false;
     }
+    return false;
+}
+
+void Board::updateValidMoves() {
+    valid_moves = calculateValidMoves(selected_pos);
+}
+
+std::vector<Position> Board::calculateValidMoves(const Position& from) const {
+    std::vector<Position> moves;
+    std::string piece = getPieceAt(from);
+    
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            Position to{x, y};
+            if (isValidPieceMove(piece, from, to)) {
+                moves.push_back(to);
+            }
+        }
+    }
+    return moves;
+}
+
+bool Board::placePiece(const std::string& piece, int player_turn) {
+    Position pos{cursor_x, cursor_y};
+    // Check valid placement zone based on player
+    bool valid_zone = (player_turn == 1 && pos.y <= size/2) ||
+                     (player_turn == 2 && pos.y > size/2);
+    
+    if (getPieceAt(pos) == "·" && valid_zone) {
+        setPieceAt(pos, piece);
+        spdlog::info("Placed {} at ({},{}) by Player {}", piece, pos.x, pos.y, player_turn);
+        return true;
+    }
+    return false;
+}
+
+bool Board::movePiece() {
+    if (!has_selection) return false;
+    
+    Position to{cursor_x, cursor_y};
+    if (std::find(valid_moves.begin(), valid_moves.end(), to) != valid_moves.end()) {
+        std::string piece = getPieceAt(selected_pos);
+        std::string captured = getPieceAt(to);
+        
+        if (captured != "·") {
+            spdlog::info("Captured {} at ({},{})", captured, to.x, to.y);
+        }
+        
+        setPieceAt(to, piece);
+        setPieceAt(selected_pos, "·");
+        clearSelection();
+        return true;
+    }
+    return false;
+}
+
+void Board::clearSelection() {
+    has_selection = false;
+    selected_pos = Position{-1, -1};
+    valid_moves.clear();
+}
+
+bool Board::isPieceOwner(const Position& pos, int player) const {
+    if (!isValidPosition(pos)) return false;
+    std::string piece = getPieceAt(pos);
+    if (piece == "·" || piece == "S") return false;
+    return (player == 1 && pos.y <= size/2) || 
+           (player == 2 && pos.y > size/2);
+}
+
+bool Board::isControlled(const Position& pos, int player) const {
+    if (!isValidPosition(pos)) return false;
+    std::string piece = getPieceAt(pos);
+    if (piece == "·") return false;
+    if (piece == "S") return isPieceOwner(pos, player);
+    return isPieceOwner(pos, player);
+}
+
+int Board::countTerritory(int player) const {
+    int count = 0;
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            Position pos{x, y};
+            if (isControlled(pos, player)) {
+                count += isCentralRegion(pos) ? 2 : 1;
+            }
+        }
+    }
+    return count;
+}
+
+int Board::countCentralTerritory(int player) const {
+    int count = 0;
+    int start = (size - central_size) / 2;
+    int end = start + central_size;
+    
+    for (int y = start; y < end; ++y) {
+        for (int x = start; x < end; ++x) {
+            if (isControlled(Position{x, y}, player)) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+bool Board::isGameOver(int& winner) const {
+    // Check for king capture
+    bool king1_alive = false;
+    bool king2_alive = false;
+    
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            if (grid[y][x] == "K") {
+                if (y <= size/2) king1_alive = true;
+                else king2_alive = true;
+            }
+        }
+    }
+    
+    if (!king1_alive) {
+        winner = 2;
+        return true;
+    }
+    if (!king2_alive) {
+        winner = 1;
+        return true;
+    }
+    
+    return false;
+}
+
+int Board::getScore(int player) const {
+    int territory_score = countTerritory(player);
+    int central_bonus = countCentralTerritory(player);
+    return territory_score + central_bonus;
 }
