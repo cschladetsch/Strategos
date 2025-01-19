@@ -1,4 +1,3 @@
-
 #ifndef BOARD_HPP
 #define BOARD_HPP
 
@@ -16,10 +15,8 @@ private:
 public:
     void initialize();
     void display(const std::map<std::string, int>& pieces, int player_turn) const;
-    void moveCursor(char direction);
+    void moveCursor(int input); // Arrow key movement
     bool placePiece(const std::string& piece, int player_turn);
-    int getCursorX() const { return cursor_x; }
-    int getCursorY() const { return cursor_y; }
 };
 
 #endif

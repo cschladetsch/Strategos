@@ -2,6 +2,8 @@
 
 **Strategos** is a two-player, console-based strategy game that combines elements of Chess and Go. Designed for C++23 with a single-screen interface, it emphasizes territorial control, strategic planning, and tactical gameplay.
 
+See [Gameplay.md](Gameplay.md) for details of game mechanics.
+
 ## Features
 - **Platform**: Console-based application.
 - **Player Count**: 2 players with alternating turns.

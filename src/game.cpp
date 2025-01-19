@@ -1,4 +1,3 @@
-
 #include "game.hpp"
 #include "board.hpp"
 #include <ncurses.h>
@@ -18,8 +17,8 @@ void Game::start() {
     // Initialize colors
     if (has_colors()) {
         start_color();
-        init_pair(1, COLOR_RED, COLOR_BLACK);  // Player 1's pieces
-        init_pair(2, COLOR_BLUE, COLOR_BLACK); // Player 2's pieces
+        init_pair(1, COLOR_RED, COLOR_BLACK);  // Player 1
+        init_pair(2, COLOR_BLUE, COLOR_BLACK); // Player 2
     }
 
     Board board;

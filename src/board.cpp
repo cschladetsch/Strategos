@@ -1,4 +1,3 @@
-
 #include "board.hpp"
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
@@ -6,7 +5,7 @@
 void Board::initialize() {
     spdlog::info("Initializing board...");
     for (auto& row : grid) {
-        row.fill("·"); // Use centered dot for empty cells
+        row.fill("·"); // Centered dot for empty cells
     }
 }
 
@@ -25,7 +24,7 @@ void Board::display(const std::map<std::string, int>& pieces, int player_turn) c
                 mvprintw(y + 1, 4 + x * 2, "%s", grid[y][x].c_str());
                 attroff(A_REVERSE);
             } else if (grid[y][x] == "K" || grid[y][x] == "N" || grid[y][x] == "B" || grid[y][x] == "R") {
-                int color_pair = player_turn == 1 ? 1 : 2; // Red for Player 1, Blue for Player 2
+                int color_pair = (player_turn == 1) ? 1 : 2;
                 attron(COLOR_PAIR(color_pair));
                 mvprintw(y + 1, 4 + x * 2, "%s", grid[y][x].c_str());
                 attroff(COLOR_PAIR(color_pair));
@@ -35,20 +34,29 @@ void Board::display(const std::map<std::string, int>& pieces, int player_turn) c
         }
     }
 
+    // Display available pieces and current player
+    mvprintw(size + 2, 0, "Player %d's turn.", player_turn);
+    mvprintw(size + 3, 0, "Available pieces:");
+    int offset = 20;
+    for (const auto& [piece, count] : pieces) {
+        mvprintw(size + 3, offset, "%s:%d", piece.c_str(), count);
+        offset += 10;
+    }
+
     refresh();
 }
 
-void Board::moveCursor(char direction) {
-    switch (direction) {
-        case 'w': if (cursor_y > 0) --cursor_y; break;
-        case 's': if (cursor_y < size - 1) ++cursor_y; break;
-        case 'a': if (cursor_x > 0) --cursor_x; break;
-        case 'd': if (cursor_x < size - 1) ++cursor_x; break;
+void Board::moveCursor(int input) {
+    switch (input) {
+        case KEY_UP: if (cursor_y > 0) --cursor_y; break;
+        case KEY_DOWN: if (cursor_y < size - 1) ++cursor_y; break;
+        case KEY_LEFT: if (cursor_x > 0) --cursor_x; break;
+        case KEY_RIGHT: if (cursor_x < size - 1) ++cursor_x; break;
     }
 }
 
 bool Board::placePiece(const std::string& piece, int player_turn) {
-    if (grid[cursor_y][cursor_x] == "·") {
+    if (grid[cursor_y][cursor_x] == "·") { // Check for an empty cell
         grid[cursor_y][cursor_x] = piece;
         spdlog::info("Placed {} by Player {} at ({}, {}).", piece, player_turn, cursor_y, cursor_x);
         return true;
