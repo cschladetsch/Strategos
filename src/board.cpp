@@ -1,23 +1,25 @@
 #include "board.hpp"
 #include <ncurses.h>
 #include <spdlog/spdlog.h>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
+#include <map>
+#include <string>
+#include <vector>
 
 void Board::initialize() {
     spdlog::info("Initializing board");
     
-    // Clear the grid
     for (auto& row : grid) {
         row.fill("·");
     }
     
     // Set up Player 1 pieces (top)
-    grid[0][0] = "K";  // King
-    grid[0][1] = "N";  // Knights
+    grid[0][0] = "K";
+    grid[0][1] = "N";
     grid[0][2] = "N";
-    grid[1][0] = "B";  // Bishop
-    grid[2][0] = "R";  // Rook
+    grid[1][0] = "B";
+    grid[2][0] = "R";
 
     // Set up Player 2 pieces (bottom)
     grid[10][10] = "K";
@@ -25,58 +27,58 @@ void Board::initialize() {
     grid[10][8] = "N";
     grid[9][10] = "B";
     grid[8][10] = "R";
+    
+    cursor_x = 0;
+    cursor_y = 0;
+    clearSelection();
 }
 
 void Board::display(const std::map<std::string, int>& current_pieces, int turn_count, int player_turn) const {
     clear();
 
-    // Display column headers (A-K)
-    mvprintw(0, 4, "  A B C D E F G H I J K");
+    mvprintw(0, 4, "    A B C D E F G H I J K");
     
-    // Calculate central region bounds
-    int central_start = (size - central_size) / 2;
-    int central_end = central_start + central_size;
-    
-    // Display board
     for (int y = 0; y < size; ++y) {
-        // Row numbers
-        mvprintw(y + 1, 0, "%2d ", y + 1);
-        
+        mvprintw(y + 1, 0, "%2d  ", y + 1);
         for (int x = 0; x < size; ++x) {
             Position pos{x, y};
+            bool is_cursor = (x == cursor_x && y == cursor_y);
             bool is_selected = pos == selected_pos;
             bool is_valid_move = std::find(valid_moves.begin(), valid_moves.end(), pos) != valid_moves.end();
-            bool is_central = x >= central_start && x < central_end && 
-                            y >= central_start && y < central_end;
-            bool is_cursor = (x == cursor_x && y == cursor_y);
             
-            // Base attributes
-            int attrs = 0;
-            if (is_central) attrs |= A_DIM;
-            if (is_selected) attrs |= A_REVERSE;
-            if (is_valid_move) attrs |= A_BOLD;
-            if (is_cursor) attrs |= A_REVERSE;
-            attron(attrs);
-            
-            // Color handling
-            std::string piece = grid[y][x];
-            if (piece != "·" && piece != "S") {
-                // Color based on player ownership
+            if (grid[y][x] != "·" && grid[y][x] != "S") {
                 bool is_top_half = y < size/2;
                 attron(COLOR_PAIR(is_top_half ? 1 : 2));
-            } else if (piece == "S") {
+            } else if (grid[y][x] == "S") {
                 attron(COLOR_PAIR(3));
             }
-
-            // Draw the piece
-            mvprintw(y + 1, 4 + x * 2, "%s", piece.c_str());
             
-            // Reset attributes
-            attroff(attrs);
+            if (is_cursor) attron(A_REVERSE);
+            if (is_selected) attron(A_BOLD | A_REVERSE);
+            if (is_valid_move) attron(A_BOLD);
+
+            mvprintw(y + 1, 8 + x * 2, "%c", grid[y][x][0]);
+            if (x < size - 1) {
+                mvaddch(y + 1, 9 + x * 2, ' ');
+            }
+
+            attroff(A_REVERSE | A_BOLD);
             attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
         }
     }
 
+    mvprintw(size + 2, 0, "Turn %d | Player %d", turn_count, player_turn);
+    mvprintw(size + 3, 0, "Available:");
+    
+    int offset = 10;
+    for (const auto& [piece, count] : current_pieces) {
+        if (count > 0) {
+            mvprintw(size + 3, offset, "%s:%d", piece.c_str(), count);
+            offset += 5;
+        }
+    }
+
+    mvprintw(size + 4, 0, "SPACE to select piece, K/N/B/R/S to place new piece, Q to quit");
     refresh();
 }
 
@@ -87,8 +89,7 @@ bool Board::isValidPosition(const Position& pos) const {
 bool Board::isCentralRegion(const Position& pos) const {
     int start = (size - central_size) / 2;
     int end = start + central_size;
-    return pos.x >= start && pos.x < end && 
-           pos.y >= start && pos.y < end;
+    return pos.x >= start && pos.x < end && pos.y >= start && pos.y < end;
 }
 
 std::string Board::getPieceAt(const Position& pos) const {
@@ -104,10 +105,11 @@ void Board::setPieceAt(const Position& pos, const std::string& piece) {
 
 bool Board::isValidPieceMove(const std::string& piece, const Position& from, const Position& to) const {
     if (!isValidPosition(to)) return false;
+    if (from == to) return false;
     
-    std::string target_piece = getPieceAt(to);
-    if (target_piece == "S") return false;  // Can't move onto stones
-    if (target_piece != "·" && !isOpponentPiece(to, isPieceOwner(from, 1) ? 1 : 2)) return false;
+    std::string target = getPieceAt(to);
+    if (target == "S") return false;
+    if (target != "·" && !isOpponentPiece(to, isPieceOwner(from, 1) ? 1 : 2)) return false;
 
     int dx = to.x - from.x;
     int dy = to.y - from.y;
@@ -126,12 +128,6 @@ bool Board::isValidPieceMove(const std::string& piece, const Position& from, con
         return (dx == 0 || dy == 0) && isPathClear(from, to);
     }
     return false;
-}
-
-bool Board::isOpponentPiece(const Position& pos, int player) const {
-    std::string piece = getPieceAt(pos);
-    if (piece == "·" || piece == "S") return false;
-    return isPieceOwner(pos, 3 - player);  // 3 - player switches between 1 and 2
 }
 
 bool Board::isPathClear(const Position& from, const Position& to) const {
@@ -163,37 +159,32 @@ bool Board::selectPiece(int player_turn) {
     std::string piece = getPieceAt(pos);
     
     if (piece != "·" && piece != "S" && isPieceOwner(pos, player_turn)) {
+        spdlog::info("Selected piece {} at ({},{})", piece, pos.x, pos.y);
         selected_pos = pos;
         has_selection = true;
         updateValidMoves();
-        spdlog::info("Selected {} at ({},{})", piece, pos.x, pos.y);
         return true;
     }
     return false;
 }
 
 void Board::updateValidMoves() {
-    valid_moves = calculateValidMoves(selected_pos);
-}
-
-std::vector<Position> Board::calculateValidMoves(const Position& from) const {
-    std::vector<Position> moves;
-    std::string piece = getPieceAt(from);
+    valid_moves.clear();
+    if (!has_selection) return;
     
+    std::string piece = getPieceAt(selected_pos);
     for (int y = 0; y < size; ++y) {
         for (int x = 0; x < size; ++x) {
-            Position to{x, y};
-            if (isValidPieceMove(piece, from, to)) {
-                moves.push_back(to);
+            Position pos{x, y};
+            if (isValidPieceMove(piece, selected_pos, pos)) {
+                valid_moves.push_back(pos);
             }
         }
     }
-    return moves;
 }
 
 bool Board::placePiece(const std::string& piece, int player_turn) {
     Position pos{cursor_x, cursor_y};
-    // Check valid placement zone based on player
     bool valid_zone = (player_turn == 1 && pos.y <= size/2) ||
                      (player_turn == 2 && pos.y > size/2);
     
@@ -231,12 +222,16 @@ void Board::clearSelection() {
     valid_moves.clear();
 }
 
-bool Board::isPieceOwner(const Position& pos, int player) const {
-    if (!isValidPosition(pos)) return false;
+bool Board::isOpponentPiece(const Position& pos, int player) const {
     std::string piece = getPieceAt(pos);
     if (piece == "·" || piece == "S") return false;
-    return (player == 1 && pos.y <= size/2) || 
-           (player == 2 && pos.y > size/2);
+    return isPieceOwner(pos, 3 - player);
+}
+
+bool Board::isPieceOwner(const Position& pos, int player) const {
+    if (!isValidPosition(pos)) return false;
+    bool is_top_half = pos.y < size/2;
+    return (player == 1 && is_top_half) || (player == 2 && !is_top_half);
 }
 
 bool Board::isControlled(const Position& pos, int player) const {
@@ -276,7 +271,6 @@ int Board::countCentralTerritory(int player) const {
 }
 
 bool Board::isGameOver(int& winner) const {
-    // Check for king capture
     bool king1_alive = false;
     bool king2_alive = false;
     
@@ -302,7 +296,5 @@ bool Board::isGameOver(int& winner) const {
 }
 
 int Board::getScore(int player) const {
-    int territory_score = countTerritory(player);
-    int central_bonus = countCentralTerritory(player);
-    return territory_score + central_bonus;
+    return countTerritory(player);
 }
