@@ -1,26 +1,51 @@
 #include "board.hpp"
-#include "utils.hpp"
-#include "rang.hpp" // Ensure this is included for rang functionality
-#include <iostream>
+#include <ncurses.h>
 
 void Board::initialize() {
     for (auto& row : grid) {
-        row.fill(".");
+        row.fill("."); // Initialize all cells
     }
-    grid[0][0] = color("K", "red");
-    grid[size - 1][size - 1] = color("K", "blue");
+    grid[0][0] = "K";           // Player 1's King
+    grid[size - 1][size - 1] = "K"; // Player 2's King
 }
 
 void Board::display() const {
-    // Clear screen using ANSI codes and reset style
-    std::cout << "\033[2J\033[H" << rang::style::reset;
+    clear(); // Clear the screen using ncurses
 
-    // Display the board with colors
-    for (const auto& row : grid) {
-        for (const auto& cell : row) {
-            std::cout << cell << " ";
+    // Display column labels
+    mvprintw(0, 4, "  A B C D E F G H I J K");
+
+    // Display rows and cells
+    for (int y = 0; y < size; ++y) {
+        mvprintw(y + 1, 0, "%2d ", y + 1); // Row label
+        for (int x = 0; x < size; ++x) {
+            if (x == cursor_x && y == cursor_y) {
+                attron(A_REVERSE); // Highlight cursor
+                mvprintw(y + 1, 4 + x * 2, "%s", grid[y][x].c_str());
+                attroff(A_REVERSE);
+            } else {
+                mvprintw(y + 1, 4 + x * 2, "%s", grid[y][x].c_str());
+            }
         }
-        std::cout << "\n";
+    }
+
+    refresh(); // Refresh the screen
+}
+
+void Board::moveCursor(char direction) {
+    switch (direction) {
+        case 'w': if (cursor_y > 0) --cursor_y; break; // Move up
+        case 's': if (cursor_y < size - 1) ++cursor_y; break; // Move down
+        case 'a': if (cursor_x > 0) --cursor_x; break; // Move left
+        case 'd': if (cursor_x < size - 1) ++cursor_x; break; // Move right
+    }
+}
+
+void Board::placeStone() {
+    if (grid[cursor_y][cursor_x] == ".") {
+        grid[cursor_y][cursor_x] = "S"; // Place stone
+    } else {
+        mvprintw(size + 2, 0, "Invalid move: Cell is already occupied.");
     }
 }
 

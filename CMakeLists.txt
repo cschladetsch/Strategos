@@ -1,9 +1,10 @@
+
 cmake_minimum_required(VERSION 3.20)
 project(Strategos CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 
-# Check if rang.hpp exists and download it if necessary
+# Check for rang.hpp
 set(RANG_HEADER_PATH "${CMAKE_SOURCE_DIR}/third_party/rang.hpp")
 if(NOT EXISTS ${RANG_HEADER_PATH})
     message(STATUS "rang.hpp not found, downloading...")
@@ -22,9 +23,12 @@ endif()
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 file(GLOB_RECURSE HEADERS "include/*.hpp")
 
-# Add executable target
+# Add the executable
 add_executable(Strategos ${SOURCES} ${HEADERS})
 
-# Include directories for headers
-target_include_directories(Strategos PRIVATE include third_party)
+# Include directories
+find_package(Curses REQUIRED)
+include_directories(${CURSES_INCLUDE_DIR} include third_party)
 
+# Link ncurses
+target_link_libraries(Strategos PRIVATE ${CURSES_LIBRARIES})

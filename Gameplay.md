@@ -10,9 +10,10 @@ Strategos is a two-player console-based strategy game that combines elements of 
 **Game Features:**
 1. **Platform:** Console-based application (C++23, single-screen interface).
 2. **Player Count:** 2 players, alternating turns.
+   - Turn order is determined randomly at the start of the game.
 3. **Objective:**
    - Capture the opponent’s King.
-   - Control a majority of the board by the end of a 30-turn limit.
+   - Control a majority of the board by the end of a 30-turn limit. In case of a tie, the game is declared a draw. The majority is calculated based on the number of controlled squares, including any contested ones, with priority given to the Central Region for tie-breaking.
 
 ---
 
@@ -26,7 +27,7 @@ Strategos is a two-player console-based strategy game that combines elements of 
 
 **Game Pieces:**
 1. **Stone (Immovable):**
-   - Cannot be moved after placement.
+   - Cannot be moved after placement. Stones can block the King’s movement and restrict the opponent’s ability to maneuver, adding a strategic layer to their placement.
    - Used to block paths or control territories.
    - Limited to 10 per player.
 

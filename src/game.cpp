@@ -1,30 +1,34 @@
 #include "game.hpp"
 #include "board.hpp"
-#include "rang.hpp"
-#include <iostream>
+#include <ncurses.h>
 
 void Game::start() {
-    rang::setControlMode(rang::control::Force);
+    // Initialize ncurses
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0); // Hide cursor
+
     Board board;
     board.initialize();
 
-    // Placeholder game loop
-    bool game_running = true;
-    while (game_running) {
+    int input;
+    bool running = true;
+
+    while (running) {
         board.display();
-        std::cout << "Enter your move (or type 'help'): ";
-        std::string command;
-        std::cin >> command;
-        
-        if (command == "help") {
-            std::cout << "Help: Move pieces by selecting them with cursor and placing them.\n";
-            std::cin.ignore();
-            std::cin.get(); // Wait for Enter key
-        } else if (command == "quit") {
-            game_running = false;
-        } else {
-            std::cout << "Command not recognized: " << command << "\n";
+        input = getch(); // Get user input
+        switch (input) {
+            case KEY_UP: board.moveCursor('w'); break;
+            case KEY_DOWN: board.moveCursor('s'); break;
+            case KEY_LEFT: board.moveCursor('a'); break;
+            case KEY_RIGHT: board.moveCursor('d'); break;
+            case ' ': board.placeStone(); break; // Place a stone
+            case 'q': running = false; break;    // Quit the game
         }
     }
+
+    endwin(); // End ncurses mode
 }
 

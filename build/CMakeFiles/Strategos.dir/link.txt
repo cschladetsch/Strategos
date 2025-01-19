@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/Strategos.dir/src/board.cpp.o CMakeFiles/Strategos.dir/src/game.cpp.o CMakeFiles/Strategos.dir/src/main.cpp.o CMakeFiles/Strategos.dir/src/utils.cpp.o -o Strategos  -lcurses /usr/lib/x86_64-linux-gnu/libform.so 
