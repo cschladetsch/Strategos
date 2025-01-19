@@ -1,3 +1,0 @@
-/home/xian/local/ChessGo/build/CMakeFiles/Strategos.dir
-/home/xian/local/ChessGo/build/CMakeFiles/edit_cache.dir
-/home/xian/local/ChessGo/build/CMakeFiles/rebuild_cache.dir
