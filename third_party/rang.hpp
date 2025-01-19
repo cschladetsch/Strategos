@@ -1,0 +1,1 @@
+// Placeholder for rang.hpp, to be downloaded from the official repository.
