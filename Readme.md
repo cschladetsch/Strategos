@@ -2,7 +2,7 @@
 
 **Strategos** is a two-player, console-based strategy game that combines elements of Chess and Go. Designed for C++23 with a single-screen interface, it emphasizes territorial control, strategic planning, and tactical gameplay.
 
-See [Gameplay.md](Gameplay.md) for details of game mechanics.
+See [Gameplay.md](Gameplay.md) for details of game mechanics and example gameplay.
 
 ## Features
 - **Platform**: Console-based application.
@@ -50,38 +50,6 @@ See [Gameplay.md](Gameplay.md) for details of game mechanics.
    cmake ..
    make
    ./Strategos
-   ```
-
-## Example Gameplay
-1. **Starting Board**:
-   ```
-     A B C D E F G H I J K
-   1 K N N R . . . . . . .
-   2 B . . . . . . . . . .
-   3 R . . . . . . . . . .
-   4 . . . . . . . . . . .
-   5 . . . . . . . . . . .
-   6 . . . . . . . . . . .
-   7 . . . . . . . . . . .
-   8 . . . . . . . . . . .
-   9 . . . . . . . . . . R
-  10 . . . . . . . . . B .
-  11 . . . . . . . . N N K
-   ```
-2. **Player 1 places a Stone at D5**:
-   ```
-     A B C D E F G H I J K
-   1 K N N R . . . . . . .
-   2 B . . . . . . . . . .
-   3 R . . . . . . . . . .
-   4 . . . . . . . . . . .
-   5 . . . S . . . . . . .
-   6 . . . . . . . . . . .
-   7 . . . . . . . . . . .
-   8 . . . . . . . . . . .
-   9 . . . . . . . . . . R
-  10 . . . . . . . . . B .
-  11 . . . . . . . . N N K
    ```
 
 ## Development Tools
