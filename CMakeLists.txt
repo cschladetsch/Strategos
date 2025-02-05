@@ -16,6 +16,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
+# Add ncurses as a dependency
+find_package(Curses REQUIRED)
+
 # Glob all source files
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 file(GLOB_RECURSE HEADERS "include/*.hpp")
@@ -23,9 +26,8 @@ file(GLOB_RECURSE HEADERS "include/*.hpp")
 # Add the executable
 add_executable(Strategos ${SOURCES} ${HEADERS})
 
-# Include directories
-find_package(Curses REQUIRED)
-include_directories(${CURSES_INCLUDE_DIR} include third_party)
+# Include directories for headers
+target_include_directories(Strategos PRIVATE include ${CURSES_INCLUDE_DIR})
 
 # Link libraries
 target_link_libraries(Strategos PRIVATE ${CURSES_LIBRARIES} spdlog::spdlog)
